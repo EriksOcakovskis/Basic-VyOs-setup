@@ -1,0 +1,206 @@
+# start VyOs
+
+## set IP
+set interfaces ethernet eth0 address 192.168.0.1/24
+
+## Commit changes
+commit
+
+## Save configuration
+save
+
+## Show interfaces
+run show interfaces ethernet
+
+## Disable interface
+set interfaces ethernet eth0 disable
+
+## Enable interface
+delete interfaces ethernet eth0 disable
+
+## Set gateway
+set system gateway-address <ip address>
+## or
+set protocols static route 0.0.0.0/0 next-hop <ip address> distance 1
+
+## Set NS
+set system name-server <ip address>
+
+## Add user
+set system login user zeus level admin
+set system login user zeus authentication plaintext-password vyos
+
+## Delete user
+delete system login user vyos
+
+## Load key froma  file
+loadkey zeus /config/admin_rsa.pub
+
+## Stu up ssh
+set service ssh listen-address 30.0.127.2
+set service ssh disable-password-authentication
+set service ssh port 28960
+
+
+# DHCP setup
+
+## Create a configuration node
+set service dhcp-server shared-network-name <name>
+
+## Sometimes commands in VyOS configuration mode get fairly long.
+## Edit command can be used to set CLI context to the desired node.
+edit service dhcp-server shared-network-name <name>
+
+## Set dhcp server as authoritative. Authoritative option allows DHCP server
+## to send a DHCPNAK messages for a mis-configured clients.
+set authoritative enable
+
+## Configure guest subnet and its pool
+set subnet 192.168.0.0/24 start 192.168.0.10 stop 192.168.0.250
+
+## Configure default gateway for DHCP clients:
+set subnet 192.168.0.0/24 default-router 192.168.0.254
+
+## Configure DNS server for DHCP clients:
+set subnet 192.168.0.0/24 dns-server 192.168.0.254
+
+## Set DHCP lease
+## DHCP server lease is specified in seconds, by default 86400.
+set subnet 192.168.0.0/24 lease 43200
+
+## Configure domain name
+set subnet 192.168.0.0/24 domain-name <name>
+set subnet 192.168.0.0/24 domain-search <name>
+
+## Use the exit command in order to leave from the edit CLI context
+exit
+
+## Display DHCP lease information
+run show dhcp server leases
+
+
+# Fixed IP via DHCP
+
+## Enter CLI context mode for <name>
+edit service dhcp-server shared-network-name <name> subnet <subnet>
+
+## Map a static IP to <name>
+set static-mapping <name> ip-address <ip address>
+
+## Map a mac to <name>
+set static-mapping <name> mac-address <h:h:h:h:h:h>
+
+
+# DNS
+
+## Specify a name server where to forward DNS requests
+set service dns forwarding name-server 8.8.8.8
+
+## Configure interface to listen for DNS
+set service dns forwarding listen-on eth1
+
+## Set a static mapping for hostname to IP
+set system static-host-mapping host-name <name> inet 192.168.0.2
+
+
+# SNAT
+
+## In VyOS firewall and NAT is configured as a series of rules.
+## Each rule performs an action which it is specified to do.
+## Rules are numbered and are evaluated in numerical order.
+
+## Create and start editing nat rule
+edit nat source rule 10
+
+## Add description
+set description "server subnet SNAT"
+
+## Set source address
+set source address 192.168.0.0/24
+
+## Set translation address
+set translation address <IP>
+
+
+## Set the interface that is connected to outside world
+set outbound-interface eth0
+
+## Check nat translations
+run show nat source translations
+
+
+# DNAT (port forwarding)
+
+## Create and start editing nat rule
+edit nat destination rule 10
+
+## Add description
+set description "Webserver HTTP"
+
+## Set destination address
+set destination address 30.0.127.3
+
+## Set port
+set destination port 80
+
+## Set protocol
+set protocol tcp
+
+## Set translation address
+set translation address 192.168.88.200
+
+## Set interface that you want this rule apply to
+set inbound-interface any
+
+## Show dnat translations
+run show nat destination translations
+
+
+# Firewall
+
+## There are two ways for configuring packet inspection in VyOS:
+## Declaring globally in firewall state policy;
+## Specifying packet inspection on every firewall rule-set
+## Below you will see how to configure packet state policy globally.
+
+## Globally allow all packets
+set firewall state-policy established action accept
+
+## allow packets which are starting a new connection
+set firewall state-policy related action accept
+
+## Deny invalid packets
+set firewall state-policy invalid action drop
+
+## Bind interfaces with specific zone
+set zone-policy zone WAN interface eth0
+
+## Configure a local zone (you will loose connection to router here)
+zeus@vyos# set zone-policy zone LOCAL local-zone
+
+## A rule-set is a named collection of firewall rules
+## that can be applied to an interface or zone.
+## Rules are numbered and are evaluated in numerical order.
+
+## Create and start editing rule
+edit firewall name WAN-LOCAL rule 10
+
+## Set description
+set description "Allow SSH from 30.0.127.0/28"
+
+## Set a criteria on how to filter trafic
+set action accept
+
+## Set a destination address
+set destination address 30.0.127.0/28
+
+## Set protocol
+set protocol tcp
+
+## Set port
+set destination port 28960
+
+## Set a rule to filter trafic from WAN to LOCAL
+set zone-policy zone LOCAL from WAN firewall name WAN-LOCAL
+
+# end VyOs
